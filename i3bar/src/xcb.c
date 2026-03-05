@@ -591,7 +591,7 @@ static void focus_workspace(i3_ws *ws) {
     if (ws->id != 0) {
         /* Workspace ID has higher precedence since the workspace_command is
          * allowed to change workspace names as long as it provides a valid ID. */
-        sasprintf(&buffer, "[con_id=%lld] focus workspace", ws->id);
+        sasprintf(&buffer, "[con_id=%lu] focus workspace", ws->id);
         goto done;
     }
 
@@ -912,12 +912,10 @@ static void handle_client_message(xcb_client_message_event_t *event) {
         DLOG("_NET_SYSTEM_TRAY_OPCODE received\n");
         /* event->data.data32[0] is the timestamp */
         uint32_t op = event->data.data32[1];
-        uint32_t mask;
         uint32_t values[2];
         if (op == SYSTEM_TRAY_REQUEST_DOCK) {
-            xcb_window_t client = event->data.data32[2];
-
-            mask = XCB_CW_EVENT_MASK;
+            const xcb_window_t client = event->data.data32[2];
+            uint32_t mask = XCB_CW_EVENT_MASK;
 
             /* Needed to get the most recent value of XEMBED_MAPPED. */
             values[0] = XCB_EVENT_MASK_PROPERTY_CHANGE;
@@ -1515,8 +1513,11 @@ static void send_tray_clientmessage(void) {
 static void init_tray(void) {
     DLOG("Initializing system tray functionality\n");
     /* request the tray manager atom for the X11 display we are running on */
-    char atomname[strlen("_NET_SYSTEM_TRAY_S") + 11];
-    snprintf(atomname, strlen("_NET_SYSTEM_TRAY_S") + 11, "_NET_SYSTEM_TRAY_S%d", screen);
+    /* The following line cannot use strlen as that makes compilation fail with
+     * some versions of clang (-Wgnu-folding-constant): */
+    const size_t systray_len = strlen("_NET_SYSTEM_TRAY_S") + 11;
+    char atomname[systray_len];
+    snprintf(atomname, systray_len, "_NET_SYSTEM_TRAY_S%d", screen);
     xcb_intern_atom_cookie_t tray_cookie;
     if (tray_reply == NULL) {
         tray_cookie = xcb_intern_atom(xcb_connection, 0, strlen(atomname), atomname);
@@ -1928,6 +1929,7 @@ void reconfig_windows(bool redraw_bars) {
                                                8,
                                                len,
                                                class);
+            free(class);
 
             char *name;
             sasprintf(&name, "i3bar for output %s", walk->name);
