@@ -6,6 +6,7 @@ xmacro(_NET_WM_NAME) \
 xmacro(_NET_WM_VISIBLE_NAME) \
 xmacro(_NET_WM_MOVERESIZE) \
 xmacro(_NET_WM_STATE_STICKY) \
+xmacro(_NET_WM_STATE_ABOVE) \
 xmacro(_NET_WM_STATE_FULLSCREEN) \
 xmacro(_NET_WM_STATE_DEMANDS_ATTENTION) \
 xmacro(_NET_WM_STATE_MODAL) \

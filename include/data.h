@@ -754,6 +754,11 @@ struct Con {
      * window is floating. */
     bool sticky;
 
+    /* Whether this window should be kept above all other floating windows.
+     * This corresponds to the _NET_WM_STATE_ABOVE atom and is only
+     * respected for floating windows. */
+    bool on_top;
+
     /* layout is the layout of this container: one of split[v|h], stacked or
      * tabbed. Special containers in the tree (above workspaces) have special
      * layouts like dockarea or output.

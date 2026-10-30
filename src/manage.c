@@ -473,6 +473,39 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
         want_floating = true;
     }
 
+    /* WeChat (Linux) hack: WeChat marks all of its windows as
+     * _NET_WM_WINDOW_TYPE_NORMAL, but only the main window carries a window
+     * title ("微信"/"WeChat"). Its popup windows (emoji suggestion bar,
+     * @-member list, contact/chat-history search, …) are all untitled and
+     * must never be tiled. No wechat window should carry i3 decorations:
+     * the client draws its own frame and an i3 border/title bar breaks it. */
+    const bool wechat_window =
+        cwindow->class_class != NULL &&
+        (strcasecmp(cwindow->class_class, "wechat") == 0 ||
+         strcasecmp(cwindow->class_class, "WeChatAppEx") == 0);
+    const bool wechat_popup =
+        wechat_window &&
+        (cwindow->name == NULL || i3string_get_num_bytes(cwindow->name) == 0);
+    if (wechat_popup) {
+        LOG("Untitled wechat window, forcing floating\n");
+        want_floating = true;
+    }
+
+    /* WeChat popups (emoji suggestion bar, @-member list, search, ...) are
+     * passive windows: they never take focus, so i3 would stack them below
+     * the focused (floated) main window. Keep every wechat transient /
+     * utility window above all other floating windows. Some popups also
+     * request this explicitly via _NET_WM_STATE_ABOVE / the KDE-specific
+     * _NET_WM_STATE_STAYS_ON_TOP, which i3 does not implement. */
+    if (wechat_window &&
+        (cwindow->transient_for != XCB_NONE ||
+         xcb_reply_contains_atom(type_reply, A__NET_WM_WINDOW_TYPE_UTILITY) ||
+         xcb_reply_contains_atom(state_reply, A__NET_WM_STATE_ABOVE) ||
+         xcb_reply_contains_atom(state_reply, A__NET_WM_STATE_STAYS_ON_TOP))) {
+        LOG("WeChat popup, keeping it on top\n");
+        nc->on_top = true;
+    }
+
     if (xcb_reply_contains_atom(state_reply, A__NET_WM_STATE_STICKY)) {
         nc->sticky = true;
     }
@@ -539,6 +572,11 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
         } else {
             con_set_border_style(nc, motif_border_style, config.default_border_width);
         }
+    }
+
+    if (wechat_window) {
+        /* WeChat draws its own frame; strip all i3 decorations. */
+        con_set_border_style(nc, BS_NONE, 0);
     }
 
     /* explicitly set the border width to the default */
