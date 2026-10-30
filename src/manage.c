@@ -473,6 +473,56 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
         want_floating = true;
     }
 
+    /* Hack for Qt apps that draw their own window frame (WeChat, WPS
+     * Office): no i3 decorations, and their popup windows must never be
+     * tiled. WeChat marks all of its windows as
+     * _NET_WM_WINDOW_TYPE_NORMAL, but only the main window carries a window
+     * title ("微信"/"WeChat"); its popup windows (emoji suggestion bar,
+     * @-member list, contact/chat-history search, …) are all untitled. */
+    static const char *const own_frame_classes[] = {
+        "wechat", "WeChatAppEx",
+        "wps", "wpsoffice", "et", "wpp", "wpspdf",
+        "com.alibabainc.dingtalk",
+        "wemeetapp", "QQ",
+        "ToDesk", "sunloginclient", "awesun", "feishu",
+    };
+    bool own_frame_window = false;
+    if (cwindow->class_class != NULL) {
+        for (size_t i = 0; i < sizeof(own_frame_classes) / sizeof(own_frame_classes[0]); i++) {
+            if (strcasecmp(cwindow->class_class, own_frame_classes[i]) == 0) {
+                own_frame_window = true;
+                break;
+            }
+        }
+    }
+    const bool own_frame_popup =
+        own_frame_window &&
+        (cwindow->name == NULL || i3string_get_num_bytes(cwindow->name) == 0);
+    if (own_frame_popup) {
+        LOG("Untitled own-frame window, forcing floating\n");
+        want_floating = true;
+    }
+
+    /* WeChat/WPS popups (emoji suggestion bar, @-member list, search,
+     * format dialogs, ...) are passive windows: they never take focus, so
+     * i3 would stack them below the focused (floated) main window. Keep
+     * every transient / utility window of these apps above all other
+     * floating windows. Some popups also request this explicitly via
+     * _NET_WM_STATE_ABOVE / the KDE-specific _NET_WM_STATE_STAYS_ON_TOP,
+     * which i3 does not implement. Make them sticky as well so they stay
+     * visible when switching workspaces (e.g. the Tencent Meeting mini
+     * bar requests this via _NET_WM_STATE_STICKY, but too late for i3's
+     * manage-time check to notice). */
+    if (own_frame_window &&
+        (cwindow->transient_for != XCB_NONE ||
+         xcb_reply_contains_atom(type_reply, A__NET_WM_WINDOW_TYPE_UTILITY) ||
+         xcb_reply_contains_atom(state_reply, A__NET_WM_STATE_ABOVE) ||
+         xcb_reply_contains_atom(state_reply, A__NET_WM_STATE_STAYS_ON_TOP))) {
+        LOG("own-frame app popup, keeping it on top and sticky\n");
+        nc->on_top = true;
+        nc->sticky = true;
+    }
+
     if (xcb_reply_contains_atom(state_reply, A__NET_WM_STATE_STICKY)) {
         nc->sticky = true;
     }
@@ -539,6 +589,11 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
         } else {
             con_set_border_style(nc, motif_border_style, config.default_border_width);
         }
+    }
+
+    if (own_frame_window) {
+        /* These clients draw their own frame; strip all i3 decorations. */
+        con_set_border_style(nc, BS_NONE, 0);
     }
 
     /* explicitly set the border width to the default */

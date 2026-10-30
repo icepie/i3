@@ -296,14 +296,22 @@ static void render_root(Con *con, Con *fullscreen) {
         Con *workspace = TAILQ_FIRST(&(content->focus_head));
         Con *fullscreen = con_get_fullscreen_covering_ws(workspace);
         Con *child;
-        TAILQ_FOREACH (child, &(workspace->floating_head), floating_windows) {
-            if (fullscreen_blocks_floating_render(fullscreen, child)) {
-                continue;
+        /* Raise in two passes: regular floating windows first, then the
+         * "always on top" ones (_NET_WM_STATE_ABOVE), so the latter are
+         * never covered by other floating windows. */
+        for (int pass = 0; pass < 2; pass++) {
+            TAILQ_FOREACH (child, &(workspace->floating_head), floating_windows) {
+                if (fullscreen_blocks_floating_render(fullscreen, child)) {
+                    continue;
+                }
+                if (con_descend_focused(child)->on_top != (pass == 1)) {
+                    continue;
+                }
+                DLOG("floating child at (%d,%d) with %d x %d\n",
+                     child->rect.x, child->rect.y, child->rect.width, child->rect.height);
+                x_raise_con(child);
+                render_con(child);
             }
-            DLOG("floating child at (%d,%d) with %d x %d\n",
-                 child->rect.x, child->rect.y, child->rect.width, child->rect.height);
-            x_raise_con(child);
-            render_con(child);
         }
     }
 }

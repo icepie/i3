@@ -21,5 +21,6 @@ xmacro(I3_FLOATING_WINDOW) \
 xmacro(_NET_REQUEST_FRAME_EXTENTS) \
 xmacro(_NET_FRAME_EXTENTS) \
 xmacro(_MOTIF_WM_HINTS) \
+xmacro(_NET_WM_STATE_STAYS_ON_TOP) \
 xmacro(WM_CHANGE_STATE) \
 xmacro(MANAGER)
